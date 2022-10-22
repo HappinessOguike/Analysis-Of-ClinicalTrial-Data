@@ -1,0 +1,167 @@
+--Creating clinicaltrial table:
+
+CREATE TABLE IF NOT EXISTS `happiness coursework`.`clinicaltrial_2021` (
+`id` string,
+`sponsor` string,
+`status` string,
+`start` string,
+`completion` string,
+`type` string,
+`submission` string,
+`conditions` string,
+`interventions` date
+)
+
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe' 
+WITH SERDEPROPERTIES (
+  'serialization.format' = '|',
+  'field.delim' = '|'
+) LOCATION 's3://happinesso/FileStore1/'
+TBLPROPERTIES ('has_encrypted_data'='false',
+'skip.header.line.count'='1');
+
+
+--Creating mesh table
+
+CREATE TABLE IF NOT EXISTS `happiness coursework`.`mesh` (
+Term STRING,
+Tree STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe' 
+WITH SERDEPROPERTIES (
+  'serialization.format' = ',',
+  'field.delim' = ','
+) LOCATION 's3://happinesso/FileStore2/'
+TBLPROPERTIES ('has_encrypted_data'='false',
+'skip.header.line.count'='1');
+
+
+--Creating pharma table
+
+CREATE TABLE IF NOT EXISTS `happiness coursework`.`pharma` (
+Company STRING,
+Parent_Company STRING,
+Penalty_Amount STRING,
+Subtraction_From_Penalty STRING,
+Penalty_Amount_Adjusted_For_Eliminating_Multiple_Counting STRING,
+Penalty_Year STRING,
+Penalty_Date STRING,
+Offense_Group STRING,
+Primary_Offense STRING,
+Description STRING,
+Level_of_Government STRING,
+Action_Type STRING,
+Agency STRING,
+Prosecution_Agreement STRING,
+Court STRING,
+Case_ID STRING,
+Private_Litigation_Case_Title STRING,
+Lawsuit_Resolution STRING,
+Facility_State STRING,
+City STRING,
+Address STRING,
+Zip STRING,
+NAICS STRING,
+NAICS_Translation STRING,
+HQ_Country_of_Parent STRING,
+HQ_State_of_Parent STRING,
+Ownership_Structure STRING,
+Parent_Company_Stock_Ticker STRING,
+Major_Industry_of_Parent STRING,
+Specific_Industry_of_Parent STRING,
+Info_Source STRING,
+Notes STRING
+)
+ROW FORMAT SERDE 
+'org.apache.hadoop.hive.serde2.OpenCSVSerde'
+WITH SERDEPROPERTIES (
+   'separatorChar' = ',',
+   'quoteChar' = '\"',
+   'escapeChar' = '\\'
+   )
+LOCATION 's3://happinesso/FileStore3/'
+TBLPROPERTIES ('has_encrypted_data'='false',
+'skip.header.line.count'='1');
+
+
+--Question 1
+
+SELECT DISTINCT COUNT(*) AS Studies
+FROM "happiness coursework"."clinicaltrial_2021"
+
+
+--Question 2
+
+SELECT Type, COUNT(Type) As Total
+FROM clinicaltrial_2021
+GROUP BY Type
+ORDER BY Total DESC
+
+--Question 3
+
+
+SELECT Most_Conditions, 
+COUNT(Most_Conditions) AS Total
+FROM clinicaltrial_2021
+
+CROSS JOIN UNNEST(split(conditions,',')) as t (Most_Conditions)
+WHERE Most_Conditions != ''
+GROUP BY Most_Conditions
+ORDER BY Total DESC
+LIMIT 5
+
+
+
+--Question 4
+--Creating a view NewConditions for the clinicaltrial file
+
+CREATE VIEW NewConditions
+AS
+SELECT Most_Conditions
+FROM clinicaltrial_2021
+
+CROSS JOIN UNNEST(split(conditions,',')) as t (Most_Conditions)
+WHERE Most_Conditions != ''
+
+--Selecting substring from the created newconditions view to answer question 4
+
+SELECT SUBSTR(mesh.tree,1,3) AS Roots,
+count(*) AS Frequency
+FROM mesh
+JOIN newconditions
+ON newconditions.Most_Conditions=mesh.term
+GROUP BY SUBSTR(mesh.tree,1,3)
+ORDER BY Frequency DESC
+LIMIT 5
+
+
+--Question 5
+
+
+SELECT sponsor, count(*) as Frequency
+FROM clinicaltrial_2021
+WHERE sponsor NOT IN (
+select 
+Parent_company
+FROM pharma)
+GROUP BY sponsor
+ORDER BY Frequency DESC
+LIMIT 10
+
+
+--Question 6
+
+--creating view completed
+
+CREATE VIEW Completed AS
+select * 
+from clinicaltrial_2021
+where status = 'Completed'
+
+--selecting substrings from the completed view created to anwer question 6
+
+SELECT substring(COMPLETION, 1, 3) as Completion, COUNT(*) AS Frequency
+FROM COMPLETED
+WHERE SUBSTRING(COMPLETION,5, 8) = '2021'
+GROUP BY COMPLETION
+ORDER BY date_parse(completion,'%b')
